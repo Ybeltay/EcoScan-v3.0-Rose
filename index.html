@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1f14">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="EcoScan: escanea tus plantas y tu suelo con la cámara y recibe un diagnóstico con IA, con cuidados y plan de rehabilitación.">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>EcoScan - Rehabilitación de Suelos con IA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Voz del saludo del inicio; va aparte para que, si no carga, Inter no se vea afectada -->
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap" rel="stylesheet">
+    <!-- Font Awesome 7 (jsDelivr); si el CDN no responde, se carga la 6.7.2 desde cdnjs -->
+    <link id="faCss" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css">
+    <script>
+        document.getElementById('faCss').addEventListener('error', function () {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css';
+            document.head.appendChild(l);
+        });
+    </script>
+</head>
+<body>
+    <div class="bg-fx" id="bgFx" aria-hidden="true"></div>
+
+    <script>
+        // El saludo del inicio espera esta promesa para poder decir tu nombre
+        window.userReady = (async function checkAuth() {
+            try {
+                const apiBase = window.location.origin;   // la app y la API viven en el mismo servidor
+                window._apiBase = apiBase;
+                const resp = await fetch(apiBase + '/api/check-auth', { credentials: 'include' });
+                const data = await resp.json();
+                if (!data.authenticated) {
+                    window.location.href = 'login.html';
+                } else {
+                    window.userData = data.user;
+                    const userDisplay = document.getElementById('userDisplay');
+                    if (userDisplay) userDisplay.textContent = data.user.nombre;
+                    const greet = document.getElementById('userGreeting');
+                    if (greet) greet.textContent = '👋 ' + data.user.nombre;
+                }
+            } catch (e) {
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
+
+    <div class="app-container">
+        <header class="header">
+            <div class="logo-container">
+                <i class="fas fa-leaf logo-icon"></i>
+                <h1 class="logo-text">EcoScan</h1>
+            </div>
+            <div class="header-actions">
+                <button id="installBtn" class="install-btn" style="display:none;">
+                    <i class="fas fa-download"></i><span>Instalar</span>
+                </button>
+                <!-- Usuario y cerrar sesión -->
+                <span id="userGreeting" style="font-size:.85rem;color:var(--text-secondary);font-weight:500;"></span>
+                <button id="logoutBtn" class="lang-btn" style="background:var(--accent-light);">
+                    <i class="fas fa-sign-out-alt"></i><span>Salir</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="scan-hub" aria-labelledby="greetTitle">
+            <div class="hub-greet is-pending" id="hubGreet">
+                <h2 id="greetTitle" class="greet-title">¿Qué quieres analizar hoy?</h2>
+                <p id="greetTip" class="greet-tip">Escanea con tu cámara y la IA te entrega un diagnóstico completo en segundos.</p>
+            </div>
+            <i class="fas fa-arrow-down hub-arrow" aria-hidden="true"></i>
+            <div class="scan-cards">
+                <button type="button" class="scan-card" id="scanPlantCard">
+                    <svg class="scan-art" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="60" cy="60" r="54" stroke-width="1.4" stroke-dasharray="3 7" opacity=".45"/>
+                        <path d="M41 80h38l-4.5 21h-29z"/>
+                        <rect x="37" y="72" width="46" height="9" rx="3.5"/>
+                        <path d="M60 72V46"/>
+                        <path d="M60 60C47 60 38 51 38 39c12 0 22 8 22 21z" fill="currentColor" fill-opacity=".22"/>
+                        <path d="M60 49C73 49 83 40 83 27c-13 0-23 9-23 22z" fill="currentColor" fill-opacity=".22"/>
+                    </svg>
+                    <span class="scan-card-title">Análisis de plantas</span>
+                    <span class="scan-card-desc">Especies, plagas, enfermedades y cuidados</span>
+                    <span class="scan-cta"><i class="fas fa-camera"></i> Escanear planta</span>
+                </button>
+                <button type="button" class="scan-card" id="scanSoilCard">
+                    <svg class="scan-art" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="60" cy="60" r="54" stroke-width="1.4" stroke-dasharray="3 7" opacity=".45"/>
+                        <path d="M60 52V37"/>
+                        <path d="M60 43c-8 0-13-5-13-12 8 0 13 5 13 12z" fill="currentColor" fill-opacity=".22"/>
+                        <path d="M60 41c7 0 12-5 12-11-7 0-12 5-12 11z" fill="currentColor" fill-opacity=".22"/>
+                        <path d="M28 52q8-6 16 0t16 0 16 0 16 0"/>
+                        <path d="M28 68q8-6 16 0t16 0 16 0 16 0" opacity=".8"/>
+                        <path d="M28 84q8-6 16 0t16 0 16 0 16 0" opacity=".6"/>
+                        <circle cx="40" cy="60" r="1.8" fill="currentColor" stroke="none"/>
+                        <circle cx="72" cy="61" r="1.8" fill="currentColor" stroke="none"/>
+                        <circle cx="55" cy="77" r="1.8" fill="currentColor" stroke="none"/>
+                        <circle cx="82" cy="76" r="1.8" fill="currentColor" stroke="none"/>
+                        <circle cx="36" cy="93" r="1.8" fill="currentColor" stroke="none"/>
+                        <circle cx="66" cy="94" r="1.8" fill="currentColor" stroke="none"/>
+                    </svg>
+                    <span class="scan-card-title">Análisis de suelo</span>
+                    <span class="scan-card-desc">Propiedades, fertilidad y condiciones</span>
+                    <span class="scan-cta"><i class="fas fa-camera"></i> Escanear suelo</span>
+                </button>
+            </div>
+            <i class="fas fa-arrow-down hub-arrow" aria-hidden="true"></i>
+            <div class="manual-toggles">
+                <button type="button" class="manual-toggle" id="toggleManualBtn" aria-expanded="false" aria-controls="manualPanel">
+                    <i class="fas fa-mountain"></i><span>Formulario de suelo</span><i class="fas fa-chevron-down"></i>
+                </button>
+                <button type="button" class="manual-toggle" id="togglePlantFormBtn" aria-expanded="false" aria-controls="plantFormPanel">
+                    <i class="fas fa-leaf"></i><span>Formulario de planta</span><i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Modal Tutorial -->
+        <div id="tutorialModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <i class="fas fa-leaf"></i>
+                    <h3>Bienvenido a EcoScan</h3>
+                    <button id="closeTutorial" class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="tutorialStep"></div>
+                    <div class="tutorial-nav">
+                        <button id="prevStep" class="tutorial-btn" disabled><i class="fas fa-chevron-left"></i> Anterior</button>
+                        <span id="stepCounter">Paso 1/4</span>
+                        <button id="nextStep" class="tutorial-btn">Siguiente <i class="fas fa-chevron-right"></i></button>
+                        <button id="skipTutorial" class="tutorial-btn">Omitir</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="main-content">
+            <div id="manualPanel" class="form-container manual-panel hidden">
+                <div class="form-header">
+                    <i class="fas fa-clipboard-list"></i>
+                    <h3>Evaluación del Suelo</h3>
+                    <p>Completa los campos para obtener un diagnóstico personalizado por IA</p>
+                </div>
+                <div class="quick-tools">
+                    <button id="showGuidesBtn" class="tool-btn"><i class="fas fa-book-open"></i> <span>Guías visuales</span></button>
+                </div>
+                <form id="soilForm" class="soil-form">
+                    <input type="hidden" id="userLatitude">
+                    <input type="hidden" id="userLongitude">
+                    <input type="hidden" id="userRegion">
+                    <div class="form-group alert-group location-group">
+                        <label class="loc-switch" for="enableLocation">
+                            <input type="checkbox" id="enableLocation" autocomplete="off">
+                            <span class="loc-track" aria-hidden="true"></span>
+                            <span class="loc-text">
+                                <strong><i class="fas fa-map-marker-alt"></i> Usar mi ubicación</strong>
+                                <small>Mapas de suelo de OpenLandMap (30 m, con SoilGrids de respaldo), clima real de NASA y plantas de tu región. Puedes desactivarla cuando quieras.</small>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="locationDisplay" class="location-info hidden">
+                        <i class="fas fa-location-dot"></i>
+                        <span id="locationText">Ubicación detectada</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="soilType"><i class="fas fa-mountain"></i> Tipo de suelo <span class="required">*</span></label>
+                        <select id="soilType" required>
+                            <option value="">Selecciona una opción</option>
+                            <option value="arenoso">Arenoso - Suelto, granulado, drena rápido</option>
+                            <option value="arcilloso">Arcilloso - Pesado, compacto, retiene agua</option>
+                            <option value="limoso">Limoso - Suave, fértil, retiene humedad</option>
+                            <option value="franco">Franco - Equilibrio ideal</option>
+                            <option value="franco_arenoso">Franco arenoso</option>
+                            <option value="franco_arcilloso">Franco arcilloso</option>
+                            <option value="organico">Orgánico (turba) - Rico en materia orgánica</option>
+                            <option value="calcareo">Calcáreo - Presencia de calcio</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="phLevel"><i class="fas fa-flask"></i> pH del suelo <span class="optional-tag">opcional</span></label>
+                        <div class="ph-input-group">
+                            <input type="range" id="phSlider" min="0" max="14" step="0.1" value="7" aria-label="Ajustar el pH con el control deslizante">
+                            <input type="number" id="phLevel" step="0.1" min="0" max="14" placeholder="—" aria-describedby="phHint">
+                        </div>
+                        <div class="ph-scale">
+                            <span id="phAcid">Ácido (0-6)</span>
+                            <span id="phNeutral">Neutro (6.5-7.5)</span>
+                            <span id="phAlkaline">Alcalino (7.5-14)</span>
+                        </div>
+                        <select id="phMethod" aria-label="Cómo se obtuvo el pH" disabled>
+                            <option value="estimate">Es una estimación mía (sin instrumento)</option>
+                            <option value="strip">Medido con tiras o kit colorimétrico</option>
+                            <option value="meter">Medido con medidor / potenciómetro calibrado</option>
+                            <option value="lab_water">Laboratorio (pH en agua)</option>
+                            <option value="cacl2">Laboratorio (pH en CaCl₂)</option>
+                            <option value="kcl">Laboratorio (pH en KCl)</option>
+                        </select>
+                        <small class="field-hint" id="phHint">Sin dato: la app usará el modelo satelital o la foto. El 7 del control no cuenta como medición hasta que lo muevas o escribas un valor.</small>
+                    </div>
+                    <details class="measured-box" id="measuredBox">
+                        <summary>
+                            <i class="fas fa-vial"></i>
+                            <span class="measured-title"><strong>Datos medidos y pruebas de campo</strong><small>Opcional · es lo que más sube la precisión: una foto no puede medir salinidad, N-P-K ni el pH</small></span>
+                            <i class="fas fa-chevron-down measured-chevron" aria-hidden="true"></i>
+                        </summary>
+                        <div class="measured-body">
+                            <p class="measured-note">Escribe <strong>solo lo que realmente mediste</strong>; lo que dejes vacío se marcará «sin medición» en el reporte en vez de inventarse. Cada dato queda etiquetado con su procedencia.</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="measBy">¿Cómo se midió?</label>
+                                    <select id="measBy">
+                                        <option value="kit">Medidor o kit propio</option>
+                                        <option value="lab">Laboratorio</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="measDepth">Profundidad de la muestra</label>
+                                    <select id="measDepth">
+                                        <option value="0-5 cm">0–5 cm</option>
+                                        <option value="0-20 cm" selected>0–20 cm</option>
+                                        <option value="20-40 cm">20–40 cm</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="meas-grid">
+                                <div class="form-group meas-wide">
+                                    <label for="ecValue"><i class="fas fa-bolt"></i> Conductividad eléctrica (salinidad)</label>
+                                    <div class="meas-inline">
+                                        <input type="number" id="ecValue" step="0.01" min="0" placeholder="Valor">
+                                        <select id="ecUnit" aria-label="Unidad de la conductividad">
+                                            <option value="dS/m">dS/m</option>
+                                            <option value="mS/cm">mS/cm</option>
+                                            <option value="uS/cm">µS/cm</option>
+                                        </select>
+                                        <select id="ecMethod" aria-label="Método de la conductividad">
+                                            <option value="ece">Extracto / pasta de saturación</option>
+                                            <option value="1:5">Suspensión 1:5 (suelo:agua)</option>
+                                            <option value="1:2">Suspensión 1:2</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="omValue"><i class="fas fa-seedling"></i> Materia orgánica (%)</label>
+                                    <input type="number" id="omValue" step="0.1" min="0" max="90" placeholder="Ej: 2.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cecValue"><i class="fas fa-atom"></i> CIC (cmol/kg)</label>
+                                    <input type="number" id="cecValue" step="0.1" min="0" placeholder="Ej: 18">
+                                </div>
+                                <div class="form-group meas-wide">
+                                    <label for="pValue"><i class="fas fa-flask-vial"></i> Fósforo disponible (mg/kg)</label>
+                                    <div class="meas-inline">
+                                        <input type="number" id="pValue" step="0.1" min="0" placeholder="Valor">
+                                        <select id="pMethod" aria-label="Método del fósforo">
+                                            <option value="olsen">Olsen</option>
+                                            <option value="bray">Bray</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="kValue"><i class="fas fa-leaf"></i> Potasio (cmol/kg)</label>
+                                    <input type="number" id="kValue" step="0.01" min="0" placeholder="Ej: 0.4">
+                                </div>
+                                <div class="form-group">
+                                    <label for="nValue"><i class="fas fa-cubes"></i> Nitrógeno inorgánico (mg/kg)</label>
+                                    <input type="number" id="nValue" step="1" min="0" placeholder="Ej: 25">
+                                </div>
+                                <div class="form-group meas-wide">
+                                    <label><i class="fas fa-chart-pie"></i> Textura de laboratorio (%)</label>
+                                    <div class="meas-inline meas-three">
+                                        <input type="number" id="clayLab" min="0" max="100" step="1" placeholder="Arcilla" aria-label="Arcilla de laboratorio">
+                                        <input type="number" id="sandLab" min="0" max="100" step="1" placeholder="Arena" aria-label="Arena de laboratorio">
+                                        <input type="number" id="siltLab" min="0" max="100" step="1" placeholder="Limo" aria-label="Limo de laboratorio">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h5 class="measured-sub"><i class="fas fa-hand-holding-droplet"></i> Pruebas rápidas de campo (sin instrumentos)</h5>
+                            <div class="meas-grid">
+                                <div class="form-group">
+                                    <label for="testVinegar">Vinagre sobre la tierra seca</label>
+                                    <select id="testVinegar">
+                                        <option value="">No la hice</option>
+                                        <option value="ninguna">Sin burbujas</option>
+                                        <option value="leve">Burbujas suaves</option>
+                                        <option value="fuerte">Espuma notoria</option>
+                                    </select>
+                                    <small class="field-hint">La espuma indica carbonatos: pH alcalino.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="testCrust">Costra blanca al secarse</label>
+                                    <select id="testCrust">
+                                        <option value="">No lo sé</option>
+                                        <option value="no">No hay costra</option>
+                                        <option value="si">Sí, hay costra blanca</option>
+                                    </select>
+                                    <small class="field-hint">Indicio de sales (no es una medición).</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="testRibbon">Prueba de la cinta (bolita húmeda)</label>
+                                    <select id="testRibbon">
+                                        <option value="">No la hice</option>
+                                        <option value="none">No forma cinta</option>
+                                        <option value="short">Cinta de menos de 2.5 cm</option>
+                                        <option value="medium">Cinta de 2.5 a 5 cm</option>
+                                        <option value="long">Cinta de más de 5 cm</option>
+                                    </select>
+                                    <small class="field-hint">Más larga = más arcilla.</small>
+                                </div>
+                                <div class="form-group meas-wide">
+                                    <label><i class="fas fa-jar"></i> Prueba del frasco (% de cada capa)</label>
+                                    <div class="meas-inline meas-three">
+                                        <input type="number" id="jarClay" min="0" max="100" step="1" placeholder="Arcilla" aria-label="Arcilla del frasco">
+                                        <input type="number" id="jarSand" min="0" max="100" step="1" placeholder="Arena" aria-label="Arena del frasco">
+                                        <input type="number" id="jarSilt" min="0" max="100" step="1" placeholder="Limo" aria-label="Limo del frasco">
+                                    </div>
+                                    <small class="field-hint">Frasco transparente: ⅓ tierra, agua y una gota de detergente; agita y deja reposar. Arena ≈ 1 min, limo ≈ 2 h, arcilla ≈ 24 h. % = altura de la capa ÷ altura total.</small>
+                                </div>
+                            </div>
+
+                            <label class="consent-row" for="shareConsent">
+                                <input type="checkbox" id="shareConsent" autocomplete="off">
+                                <span>Compartir mis mediciones de forma <strong>anónima</strong> (sin nombre ni correo; ubicación redondeada a ~1 km) para mejorar el «perfil medido más cercano» de otros usuarios y calibrar la IA. Solo se comparten valores medidos con instrumento o laboratorio.</span>
+                            </label>
+                        </div>
+                    </details>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fireHistory"><i class="fas fa-fire"></i> Historial de incendios</label>
+                            <select id="fireHistory">
+                                <option value="ninguno">Sin historial</option>
+                                <option value="reciente">Incendio reciente (&lt;1 año)</option>
+                                <option value="moderado">Incendio hace 1-3 años</option>
+                                <option value="antiguo">Incendio hace +3 años</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="compaction"><i class="fas fa-weight-hanging"></i> Compactación</label>
+                            <select id="compaction">
+                                <option value="baja">Baja - Suelo suelto</option>
+                                <option value="media">Media - Moderada</option>
+                                <option value="alta">Alta - Muy compacto</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="drainage"><i class="fas fa-tint"></i> Drenaje</label>
+                            <select id="drainage">
+                                <option value="bueno">Bueno - Drena rápido</option>
+                                <option value="moderado">Moderado - Adecuado</option>
+                                <option value="pobre">Pobre - Encharcamiento</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="erosion"><i class="fas fa-wind"></i> Erosión</label>
+                            <select id="erosion">
+                                <option value="baja">Baja - Sin erosión</option>
+                                <option value="media">Media - Moderada</option>
+                                <option value="alta">Alta - Severa</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="goal"><i class="fas fa-bullseye"></i> Objetivo principal <span class="required">*</span></label>
+                        <select id="goal" required>
+                            <option value="">Selecciona una opción</option>
+                            <option value="reforestacion">Reforestación ecológica</option>
+                            <option value="agricultura">Agricultura para consumo</option>
+                            <option value="ambos">Ambos</option>
+                        </select>
+                    </div>
+                    <div class="form-group alert-group">
+                        <label><i class="fas fa-bell"></i> Recordatorios</label>
+                        <div class="alert-options">
+                            <label>
+                                <input type="checkbox" id="enableAlerts">
+                                <span>Activar recordatorios de cuidado</span>
+                            </label>
+                            <div id="alertFrequency" class="alert-frequency hidden">
+                                <select id="alertInterval">
+                                    <option value="daily">Diario</option>
+                                    <option value="weekly">Semanal</option>
+                                    <option value="monthly">Mensual</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-microchip"></i>
+                        <span>Analizar con IA</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div id="plantFormPanel" class="form-container manual-panel hidden">
+                <div class="form-header">
+                    <i class="fas fa-leaf"></i>
+                    <h3>Evaluación de la Planta</h3>
+                    <p>Cuéntanos cómo está tu planta para obtener un informe personalizado por IA</p>
+                </div>
+                <form id="plantForm" class="soil-form">
+                    <div class="form-group">
+                        <label for="plantName"><i class="fas fa-seedling"></i> ¿Qué planta es? <span class="required">*</span></label>
+                        <input type="text" id="plantName" maxlength="80" placeholder="Ej: monstera, sábila, helecho... o descríbela si no sabes su nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="plantDesc"><i class="fas fa-align-left"></i> Cómo es (opcional)</label>
+                        <input type="text" id="plantDesc" maxlength="200" placeholder="Ej: hojas grandes con agujeros, tallo trepador, flores blancas...">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="plantPlace"><i class="fas fa-house"></i> Dónde está</label>
+                            <select id="plantPlace">
+                                <option value="interior">Interior</option>
+                                <option value="exterior">Exterior</option>
+                                <option value="terraza o balcón con semisombra">Terraza o balcón (semisombra)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="plantLight"><i class="fas fa-sun"></i> Luz que recibe</label>
+                            <select id="plantLight">
+                                <option value="poca luz (rincón sombreado)">Poca luz (rincón sombreado)</option>
+                                <option value="luz brillante indirecta" selected>Brillante indirecta</option>
+                                <option value="sol directo varias horas">Sol directo varias horas</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="plantWater"><i class="fas fa-tint"></i> Riego actual</label>
+                            <select id="plantWater">
+                                <option value="casi a diario">Casi a diario</option>
+                                <option value="cada 2-3 días">Cada 2-3 días</option>
+                                <option value="una vez por semana" selected>Una vez por semana</option>
+                                <option value="cada 2 semanas o menos">Cada 2 semanas o menos</option>
+                                <option value="sin horario fijo">Sin horario fijo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="plantLook"><i class="fas fa-heart-pulse"></i> Aspecto general</label>
+                            <select id="plantLook">
+                                <option value="vigorosa">Vigorosa</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="decaída">Decaída</option>
+                                <option value="muy deteriorada">Muy deteriorada</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-stethoscope"></i> Síntomas que observas</label>
+                        <div class="symptom-chips">
+                            <label><input type="checkbox" name="symptom" value="hojas amarillas"><span>Hojas amarillas</span></label>
+                            <label><input type="checkbox" name="symptom" value="manchas marrones o negras"><span>Manchas marrones o negras</span></label>
+                            <label><input type="checkbox" name="symptom" value="manchas con halo amarillo"><span>Manchas con halo amarillo</span></label>
+                            <label><input type="checkbox" name="symptom" value="puntas o bordes secos"><span>Puntas o bordes secos</span></label>
+                            <label><input type="checkbox" name="symptom" value="hojas caídas o marchitas"><span>Hojas caídas o marchitas</span></label>
+                            <label><input type="checkbox" name="symptom" value="polvo blanco o moho"><span>Polvo blanco o moho</span></label>
+                            <label><input type="checkbox" name="symptom" value="insectos, telarañas o huevecillos"><span>Insectos o telarañas</span></label>
+                            <label><input type="checkbox" name="symptom" value="sustancia pegajosa en las hojas"><span>Hojas pegajosas</span></label>
+                            <label><input type="checkbox" name="symptom" value="crecimiento lento o tallos alargados"><span>Crecimiento lento o alargado</span></label>
+                            <label><input type="checkbox" name="symptom" value="base del tallo blanda u oscura"><span>Base del tallo blanda</span></label>
+                            <label><input type="checkbox" name="symptom" value="hojas enrolladas o deformes"><span>Hojas enrolladas o deformes</span></label>
+                            <label><input type="checkbox" name="symptom" value="sin flores o botones que se caen"><span>Sin flores o botones que caen</span></label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="plantPotMat"><i class="fas fa-fill-drip"></i> Material de la maceta</label>
+                            <select id="plantPotMat">
+                                <option value="plástico">Plástico</option>
+                                <option value="barro o terracota">Barro o terracota</option>
+                                <option value="cerámica esmaltada">Cerámica esmaltada</option>
+                                <option value="metal">Metal</option>
+                                <option value="tela">Tela</option>
+                                <option value="sin maceta (en tierra)">Sin maceta (en tierra)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="plantPotSize"><i class="fas fa-ruler"></i> Tamaño de la maceta</label>
+                            <select id="plantPotSize">
+                                <option value="pequeña (menos de 12 cm)">Pequeña (menos de 12 cm)</option>
+                                <option value="mediana (12-25 cm)" selected>Mediana (12-25 cm)</option>
+                                <option value="grande (más de 25 cm)">Grande (más de 25 cm)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="plantPotDrain"><i class="fas fa-water"></i> Drenaje de la maceta</label>
+                        <select id="plantPotDrain">
+                            <option value="con orificios de drenaje">Con orificios de drenaje</option>
+                            <option value="sin orificios de drenaje">Sin orificios de drenaje</option>
+                            <option value="con platito que acumula agua">Con platito que acumula agua</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="plantNotes"><i class="fas fa-pen"></i> Otros detalles (opcional)</label>
+                        <input type="text" id="plantNotes" maxlength="300" placeholder="Ej: la compré hace un mes, la cambié de lugar, fertilicé hace poco...">
+                    </div>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-microchip"></i>
+                        <span>Analizar planta con IA</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div id="resultsContainer" class="results-container hidden">
+                <div class="results-header">
+                    <i class="fas fa-chart-line"></i>
+                    <h3>Diagnóstico Completo IA</h3>
+                    <button id="closeResults" class="close-results"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="resultsContent" class="results-content"></div>
+                <div class="results-actions">
+                    <button id="scheduleReminder" class="action-btn">
+                        <i class="fas fa-bell"></i> <span class="btn-long">Agendar recordatorio</span><span class="btn-short">Recordatorio</span>
+                    </button>
+                    <button id="downloadPdfBtn" class="action-btn action-btn-pdf">
+                        <i class="fas fa-file-pdf"></i> <span class="btn-long">Descargar Diagnóstico PDF</span><span class="btn-short">PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loading-spinner">
+                    <i class="fas fa-brain fa-spin"></i>
+                    <p id="loadingText">IA analizando el suelo...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal Guías -->
+        <div id="guidesModal" class="modal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <i class="fas fa-book-open"></i>
+                    <h3>Guías Visuales</h3>
+                    <button id="closeGuidesModal" class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body guides-container">
+                    <div class="guide-tabs">
+                        <button class="guide-tab active" data-guide="ph">Guía de pH</button>
+                        <button class="guide-tab" data-guide="texture">Guía de Textura</button>
+                    </div>
+                    <div id="phGuide" class="guide-content active">
+                        <h4>Escala de pH del Suelo</h4>
+                        <div class="ph-bar">
+                            <div class="ph-segment acid">Ácido<br>0-5.5</div>
+                            <div class="ph-segment neutral">Neutro<br>5.5-7.5</div>
+                            <div class="ph-segment alkaline">Alcalino<br>7.5-14</div>
+                        </div>
+                        <div class="ph-tips">
+                            <p><strong>🌱 pH ácido (&lt;5.5):</strong> Cal agrícola (1-2 ton/ha). Ideal para pinos y arándanos.</p>
+                            <p><strong>🌿 pH neutro (5.5-7.5):</strong> Ideal para la mayoría de cultivos.</p>
+                            <p><strong>🍂 pH alcalino (&gt;7.5):</strong> Aplicar azufre elemental o materia orgánica ácida.</p>
+                        </div>
+                    </div>
+                    <div id="textureGuide" class="guide-content">
+                        <h4>Tipos de Suelo</h4>
+                        <div class="texture-grid">
+                            <div class="texture-card"><i class="fas fa-mountain"></i><strong>Arenoso</strong><p>Suelto, drena muy rápido</p></div>
+                            <div class="texture-card"><i class="fas fa-hand-peace"></i><strong>Limoso</strong><p>Suave, fértil, retiene humedad</p></div>
+                            <div class="texture-card"><i class="fas fa-grip-horizontal"></i><strong>Arcilloso</strong><p>Pegajoso, retiene agua</p></div>
+                            <div class="texture-card"><i class="fas fa-seedling"></i><strong>Franco</strong><p>Equilibrio ideal, óptimo</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Cámara -->
+        <div id="cameraModal" class="modal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <i class="fas fa-camera"></i>
+                    <h3 id="cameraTitle">Escáner de Suelo con IA</h3>
+                    <button id="closeCameraModal" class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Instrucción -->
+                    <div style="background:var(--accent-light);border-radius:12px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.85rem;display:flex;align-items:center;gap:.5rem;">
+                        <i class="fas fa-info-circle" style="color:var(--accent-primary);flex-shrink:0;"></i>
+                        <span id="cameraHint">Toma o sube una foto <strong>del suelo directamente</strong> (tierra, arena, arcilla). La IA rechazará personas, objetos o cualquier cosa que no sea suelo.</span>
+                    </div>
+                    <div class="camera-container">
+                        <video id="cameraVideo" autoplay playsinline></video>
+                        <canvas id="cameraCanvas" style="display:none;"></canvas>
+                        <div class="camera-controls">
+                            <button id="capturePhoto" class="capture-btn"><i class="fas fa-camera"></i> Capturar</button>
+                            <button id="uploadPhoto" class="upload-btn"><i class="fas fa-upload"></i> Subir imagen</button>
+                            <input type="file" id="photoUpload" accept="image/*" style="display:none;">
+                        </div>
+
+                        <!-- Resultado del escaneo -->
+                        <div id="scanResult" class="scan-result hidden" style="margin-top:1rem;">
+                            <!-- Miniatura de la imagen capturada -->
+                            <img id="capturedPreview" style="display:none;width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-bottom:.75rem;" alt="Vista previa">
+                            <div id="scanAnalysis"></div>
+                            <button id="applyScanResult" class="submit-btn" style="display:none;margin-top:.75rem;padding:.65rem 1.25rem;font-size:.9rem;">
+                                <i class="fas fa-magic"></i>
+                                <span>Aplicar al formulario</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <i class="fas fa-leaf"></i>
+                    <span>EcoScan - IA para rehabilitación de suelos</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
+    <script>
+        // Respaldo si el CDN principal no responde (se usa al descargar el PDF, no al abrir la app)
+        if (!window.jspdf) {
+            var _pdf = document.createElement('script');
+            _pdf.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js';
+            document.head.appendChild(_pdf);
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>

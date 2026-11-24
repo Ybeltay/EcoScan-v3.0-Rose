@@ -1,0 +1,14 @@
+# EcoScan v3.0 - dependencias (Python 3.10 o superior; recomendado 3.12 o 3.13)
+# Los límites inferiores son las versiones probadas; pip elige solo la más nueva que acepte tu Python
+# (por ejemplo, rasterio 1.5 pide Python 3.12+; con 3.10/3.11 se instala la 1.4 sin que hagas nada).
+flask>=3.1.3,<4
+werkzeug>=3.1.9,<4
+requests>=2.34.2,<3
+groq>=1.7.0,<2
+flask-cors>=6.0.5,<7
+gunicorn>=27.0.1,<28
+psycopg2-binary>=2.9.13,<3
+# Datos satelitales de suelo (v3.9)
+rasterio>=1.4.3,<2            # OpenLandMap-soildb (30 m, COG) y SoilGrids (VRT/COG/WCS); incluye GDAL y numpy
+# Ya no se usa earthengine-api: el reemplazo gratuito (OpenLandMap-soildb) no necesita cuenta ni credenciales de Google.
+# El clima (NASA POWER), la altitud (Open-Meteo), GBIF y Nominatim se consultan por HTTP con "requests": sin dependencias nuevas.

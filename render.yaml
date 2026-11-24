@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: ecoscan
+    runtime: python
+    plan: free
+    # Region de Render. Elige en Supabase la region mas cercana (virginia = "East US (North Virginia)")
+    # porque cada consulta a la base viaja por internet. Opciones: oregon, ohio, virginia, frankfurt, singapore.
+    region: virginia
+    buildCommand: pip install -r requirements.txt
+    # gunicorn es el servidor de produccion real (el "python server.py" de desarrollo
+    # no esta pensado para atender trafico real). 1 proceso + 4 hilos es lo adecuado
+    # para el nivel gratuito de Render (RAM limitada) y para trabajo de espera de red
+    # (llamadas a Groq y SoilGrids), no de computo intensivo.
+    # --worker-tmp-dir /dev/shm: en contenedores evita que el latido de gunicorn dependa del disco (recomendado por gunicorn).
+    # --graceful-timeout y --keep-alive: cierre ordenado en cada redeploy y conexiones persistentes con el proxy de Render.
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --graceful-timeout 30 --keep-alive 5 --worker-tmp-dir /dev/shm --no-control-socket
+    # Render comprueba que la app responde (consulta real a la base de datos).
+    healthCheckPath: /api/keepalive
+    envVars:
+      # Version de Python fija (Render exige la version completa, con parche). La app se probo con 3.13;
+      # rasterio 1.5 pide 3.12 o superior. Si Render cambia su version por defecto, esto evita sorpresas.
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: ECOSCAN_ENV
+        value: production          # cookies seguras (HTTPS), HSTS y proxy de Render
+      - key: SECRET_KEY
+        generateValue: true       # Render genera uno seguro automaticamente
+      - key: GROQ_API_KEY
+        sync: false                # OBLIGATORIA: pega aqui tu llave de Groq (gsk_...).
+                                    # Ya no viene dentro del codigo: sin ella el analisis con IA
+                                    # responde "falta GROQ_API_KEY".
+      - key: DATABASE_URL
+        sync: false                # OBLIGATORIA: pega aqui la cadena de conexion de
+                                    # tu proyecto gratuito de Supabase o Neon (PostgreSQL).
+                                    # Sin esto, la app usara SQLite local, que se borra
+                                    # en cada reinicio/redeploy en Render.
+                                    # Supabase: usa la cadena "Transaction pooler" (puerto 6543, IPv4);
+                                    # la conexion directa (db.xxx.supabase.co) es solo IPv6 y Render no la alcanza.
+                                    # Si tu contrasena tiene @ # / : % ? etc., codificala (ver la guia).
+      # ── Datos externos (todas las variables siguientes son OPCIONALES; agregalas en Environment solo si las necesitas) ──
+      # Ninguna de las fuentes gratuitas de abajo necesita cuenta ni clave, salvo Pl@ntNet (opcional).
+      #
+      # Mapas de suelo. Orden de consulta por defecto (el primero que responde gana):
+      #   OpenLandMap-soildb 30 m (0-30 cm) -> SoilGrids WebDAV -> SoilGrids WCS -> SoilGrids REST (250 m, 0-5 cm)
+      #   SOIL_PROVIDERS = soildb,webdav,wcs,rest          (quita o reordena nombres para cambiarlo; "openlandmap" = soildb)
+      #   SOIL_HTTP_TIMEOUT, SOIL_PHASE_BUDGET, SOILGRIDS_WAIT, SOILGRIDS_READ_TIMEOUT      (segundos)
+      #
+      # Clima real del sitio: NASA POWER (normales mensuales) + Open-Meteo (altitud, Copernicus DEM) + clasificacion Koppen local.
+      #   CLIMATE_TIMEOUT = 10        CLIMATE_WAIT = 9          (segundos; si no responde, el analisis sigue solo con el GPS)
+      #
+      # Identificacion de plantas: el nombre cientifico y la familia se validan en GBIF (sin clave).
+      # Pl@ntNet (opcional, gratis hasta 500 identificaciones al dia): crea una clave en https://my.plantnet.org
+      #   y pegala aqui para que clasifique la foto junto con la IA de vision:
+      #   PLANTNET_API_KEY = tu-clave
+      #
+      # Nombre del lugar (Nominatim/OpenStreetMap, desde el servidor y con cache): si quieres, indica un correo de contacto
+      # como pide su politica de uso:   NOMINATIM_EMAIL = tu@correo.com

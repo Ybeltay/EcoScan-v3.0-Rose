@@ -1,0 +1,25 @@
+# Secretos: nunca se suben a GitHub
+.env
+.env.*
+.secret_key
+*service-account*.json
+*-credentials.json
+*.pem
+
+# Entorno y archivos generados
+.venv/
+__pycache__/
+*.pyc
+
+# Base de datos local (contiene cuentas de usuario)
+ecoscan.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Editor / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
